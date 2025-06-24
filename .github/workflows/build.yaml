@@ -1,9 +1,14 @@
-name: Build Wheels (to be deleted later)
+name: Build Wheels
 
 on:
   push:
     branches: [main, releases/0.8]
   pull_request:
+
+env:
+  CIBW_ARCHS_MACOS: x86_64 universal2
+  CIBW_BUILD_VERBOSITY: 1
+  CIBW_SKIP: "pp* cp36* cp37*"
 
 jobs:
   build_wheels:
@@ -19,19 +24,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install build tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install cibuildwheel
+      - name: Install cibuildwheel
+        run: python -m pip install cibuildwheel
 
       - name: Build wheels
-        run: |
-          cibuildwheel --output-dir wheelhouse
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_BEFORE_ALL_MACOS: brew install cmake pkg-config
+          CIBW_BEFORE_ALL_LINUX: yum install -y cmake pkgconfig || apt-get update && apt-get install -y cmake pkg-config
+          CIBW_BEFORE_ALL_WINDOWS: ""
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
-          path: wheelhouse
+          path: wheelhouse/*.whl
