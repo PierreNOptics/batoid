@@ -1,4 +1,4 @@
-name: Build wheels and sdist and upload to PyPI
+name: Build wheels (to be deleted later)
 
 on:
   workflow_dispatch:  # Run manually from GitHub UI
