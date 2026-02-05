@@ -85,7 +85,6 @@ jobs:
         env:
           CIBW_ARCHS: "x86_64"
           CIBW_BUILD: "*macosx*"
-          CIBW_TEST_SKIP: "*"
           CIBW_SKIP: cp36* cp37* cp38* pp*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >-
@@ -121,7 +120,6 @@ jobs:
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_ARCHS: "arm64"
-          CIBW_TEST_SKIP: "*"
           CIBW_BUILD: "*macosx*"
           CIBW_SKIP: cp36* cp37* cp38* pp*
           CIBW_BUILD_VERBOSITY: 3
