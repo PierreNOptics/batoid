@@ -68,7 +68,7 @@ jobs:
 
   build_macosx_x86_wheels:
     name: MacOS x86
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
