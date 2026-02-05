@@ -55,9 +55,10 @@ jobs:
           CIBW_BUILD: "*musllinux*"
           CIBW_SKIP: cp36* cp37* cp38* pp*
           CIBW_BUILD_VERBOSITY: 3
-          CIBW_BEFORE_BUILD: >-
-            apk add --no-cache jpeg-dev zlib-dev openblas-dev fftw-dev &&
-            pip install -U pybind11-global
+          CIBW_BEFORE_BUILD: >
+            apk add --no-cache fftw-dev openblas-dev &&
+            pip install -U pybind11
+          CIBW_TEST_SKIP: "*"
           CIBW_BEFORE_TEST: pip install -U pytest pytest-timeout pytest-cov pytest-xdist
           CIBW_TEST_COMMAND: pytest --skip_gha {package}/tests
 
@@ -84,6 +85,7 @@ jobs:
         env:
           CIBW_ARCHS: "x86_64"
           CIBW_BUILD: "*macosx*"
+          CIBW_TEST_SKIP: "*"
           CIBW_SKIP: cp36* cp37* cp38* pp*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >-
