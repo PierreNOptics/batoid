@@ -70,6 +70,11 @@ jobs:
   build_macosx_x86_wheels:
     name: MacOS x86
     runs-on: macos-15-intel
+    env:
+      # Use system Clang and a consistent deployment target
+      CC: clang
+      CXX: clang++
+      MACOSX_DEPLOYMENT_TARGET: "10.15"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,12 +94,7 @@ jobs:
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >-
             pip install -U pybind11-global &&
-            brew install llvm libomp fftw eigen
-          CIBW_ENVIRONMENT: >-
-            CC=/usr/local/opt/llvm/bin/clang
-            CXX=/usr/local/opt/llvm/bin/clang++
-            LDFLAGS="-L/usr/local/opt/llvm/lib -Wl,-rpath,/usr/local/opt/llvm/lib"
-            CPPFLAGS="-I/usr/local/opt/llvm/include"
+            brew install libomp fftw eigen
           CIBW_BEFORE_TEST: pip install -U pytest pytest-timeout pytest-cov pytest-xdist
           CIBW_TEST_COMMAND: pytest --skip_gha {package}/tests
 
@@ -106,6 +106,12 @@ jobs:
   build_macosx_arm_wheels:
     name: MacOS ARM
     runs-on: macos-latest
+    env:
+      # Use system Clang on ARM and a consistent deployment target
+      CC: clang
+      CXX: clang++
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+      FFTW_DIR: "/opt/homebrew"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -125,14 +131,7 @@ jobs:
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >-
             pip install -U pybind11-global &&
-            brew install llvm libomp fftw eigen
-          CIBW_ENVIRONMENT: >-
-            CC=/opt/homebrew/opt/llvm/bin/clang
-            CXX=/opt/homebrew/opt/llvm/bin/clang++
-            LDFLAGS="-L/opt/homebrew/opt/llvm/lib -Wl,-rpath,/opt/homebrew/opt/llvm/lib"
-            CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
-            PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-            FFTW_DIR="/opt/homebrew"
+            brew install libomp fftw eigen
           CIBW_BEFORE_TEST: pip install -U pytest pytest-timeout pytest-cov pytest-xdist
           CIBW_TEST_COMMAND: pytest --skip_gha {package}/tests
 
