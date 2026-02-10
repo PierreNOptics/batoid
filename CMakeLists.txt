@@ -11,6 +11,18 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE True)
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
+# Ensure we use the correct C++ runtime on macOS
+if(APPLE)
+  # Sanity check: do not use GCC on macOS
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(FATAL_ERROR "GCC is not supported on macOS for batoid; use Apple Clang instead.")
+  endif()
+
+  # Explicitly use libc++, which matches the system Python C++ runtime
+  add_compile_options(-stdlib=libc++)
+  add_link_options(-stdlib=libc++)
+endif()
+
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
   set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
