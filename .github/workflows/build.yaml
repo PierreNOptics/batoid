@@ -28,13 +28,18 @@ jobs:
           CIBW_BUILD: "*manylinux*"
           CIBW_SKIP: cp36* cp37* cp38* pp*
           CIBW_BUILD_VERBOSITY: 3
-          CIBW_BEFORE_BUILD: pip install -U pybind11-global
-          # Install pytest etc., then explicitly install the built wheel with -vvv
+          # 1. In the manylinux container, install OpenBLAS + build tools + pybind11
+          CIBW_BEFORE_BUILD: >
+            yum install -y openblas-devel && 
+            python -m pip install -U pybind11-global
+          # 2. For the test venv, install pytest and ensure OpenBLAS is present
           CIBW_BEFORE_TEST: >
-            pip install -U pytest pytest-timeout pytest-cov pytest-xdist
+            yum install -y openblas-devel &&
+            python -m pip install -U pytest pytest-timeout pytest-cov pytest-xdist
+          # 3. Install the built wheel (verbose) and run your tests from {project}/tests
           CIBW_TEST_COMMAND: >
             python -m pip install -vvv {wheel} &&
-            pytest -vv --maxfail=1 --skip_gha {package}/tests
+            pytest -vv --maxfail=1 --skip_gha {project}/tests
 
       - uses: actions/upload-artifact@v4
         with:
@@ -64,11 +69,13 @@ jobs:
           CIBW_SKIP: cp36* cp37* cp38* pp*
           CIBW_BUILD_VERBOSITY: 3
           CIBW_BEFORE_BUILD: >
-            apk add --no-cache fftw-dev openblas-dev &&
-            pip install -U pybind11
-          # Tests fully disabled so we only see the build failure
-          CIBW_TEST_SKIP: "*"
-          # (no CIBW_BEFORE_TEST, no CIBW_TEST_COMMAND)
+            apk add --no-cache fftw-dev openblas-dev cmake g++ &&
+            python -m pip install -U pybind11 &&
+            export pybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())")
+          CIBW_BEFORE_TEST: >
+            python -m pip install -U pytest pytest-timeout pytest-cov pytest-xdist
+          CIBW_TEST_COMMAND: >
+            python -m pytest -vv --maxfail=1 {project}/tests
 
       - uses: actions/upload-artifact@v4
         with:
@@ -108,7 +115,7 @@ jobs:
           CIBW_BEFORE_TEST: >
             pip install -U pytest pytest-timeout pytest-cov pytest-xdist
           CIBW_TEST_COMMAND: >
-            python -m pytest -vv --maxfail=1
+            python -m pytest -vv --maxfail=1 {project}/tests
 
       - uses: actions/upload-artifact@v4
         with:
@@ -150,7 +157,7 @@ jobs:
           CIBW_BEFORE_TEST: >
             pip install -U pytest pytest-timeout pytest-cov pytest-xdist
           CIBW_TEST_COMMAND: >
-            python -m pytest -vv --maxfail=1
+            python -m pytest -vv --maxfail=1 {project}/tests
 
       - uses: actions/upload-artifact@v4
         with:
