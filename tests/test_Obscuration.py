@@ -43,6 +43,39 @@ def test_ObscCircle():
             rv.vignetted
         )
 
+@timer
+def test_ObscEllipse():
+    rng = np.random.default_rng(57)
+    size = 10_000
+
+    for i in range(100):
+        cx = rng.normal(0.0, 1.0)
+        cy = rng.normal(0.0, 1.0)
+        a = rng.uniform(0.5, 1.5)
+        b = rng.uniform(0.5, 1.5)
+        obsc = batoid.ObscEllipse(a, b, cx, cy)
+
+        for i in range(100):
+            x = rng.normal(0.0, 1.0)
+            y = rng.normal(0.0, 1.0)
+            assert obsc.contains(x, y) == (np.hypot((x-cx)/a, (y-cy)/b) <= 1)
+
+        x = rng.normal(0.0, 1.0, size=size)
+        y = rng.normal(0.0, 1.0, size=size)
+        np.testing.assert_array_equal(
+            obsc.contains(x, y),
+            np.hypot((x-cx)/a, (y-cy)/b) <= 1
+        )
+
+        do_pickle(obsc)
+
+        rv = batoid.RayVector(x, y, 0.0, 0.0, 0.0, 0.0)
+        batoid.obscure(obsc, rv)
+        np.testing.assert_array_equal(
+            obsc.contains(x, y),
+            rv.vignetted
+        )
+
 
 @timer
 def test_ObscAnnulus():
@@ -385,6 +418,8 @@ def test_ne():
         batoid.ObscCircle(1.0),
         batoid.ObscCircle(2.0),
         batoid.ObscCircle(1.0, 0.1, 0.1),
+        batoid.ObscEllipse(1.0, 2.0),
+        batoid.ObscEllipse(1.0, 2.0, 0.1, 0.1),
         batoid.ObscAnnulus(0.0, 1.0),
         batoid.ObscAnnulus(0.1, 1.0),
         batoid.ObscAnnulus(0.1, 1.0, 0.1, 0.1),
@@ -429,6 +464,7 @@ def test_ne():
 
 if __name__ == '__main__':
     test_ObscCircle()
+    test_ObscEllipse()
     test_ObscAnnulus()
     test_ObscRectangle()
     test_ObscRay()
