@@ -27,7 +27,7 @@ jobs:
           CIBW_BUILD: "*manylinux*"
           CIBW_SKIP: cp36* cp37* cp38* pp*
           CIBW_BUILD_VERBOSITY: 3
-          CIBW_BEFORE_BUILD: pip install -U pybind11-global
+          CIBW_BEFORE_BUILD: yum install -y openblas openblas-devel && pip install -U pybind11-global
           CIBW_BEFORE_TEST: pip install -U pytest pytest-timeout pytest-cov pytest-xdist
           CIBW_TEST_COMMAND: pytest --skip_gha {package}/tests
 
