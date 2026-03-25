@@ -78,10 +78,10 @@ def do_pickle(obj, reprable=True):
         from batoid import (
             RayVector,
             Plane, Paraboloid, Sphere, Quadric, Asphere,
-            Bicubic, Sum, Tilted, Zernike,
+            Bicubic, Sum, Tilted, Zernike, Biconic,
             ConstMedium, TableMedium, SellmeierMedium, SumitaMedium, Air,
             ObscCircle, ObscAnnulus, ObscRectangle, ObscRay, ObscPolygon,
-            ObscNegation, ObscUnion, ObscIntersection,
+            ObscNegation, ObscUnion, ObscIntersection, ObscEllipse,
             CoordSys, CoordTransform,
             SimpleCoating,
             Optic, CompoundOptic, Baffle, Mirror, Lens, RefractiveInterface,
