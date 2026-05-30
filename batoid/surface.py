@@ -486,7 +486,6 @@ class Biconic(Surface):
     def __repr__(self):
         return f"Biconic({self.Rx}, {self.Ry}, {self.kx}, {self.ky})"
 
-
 class Zernike(Surface):
     """Surface defined by Zernike polynomials.  The surface sag follows the
     equation:
@@ -765,3 +764,469 @@ class Sum(Surface):
 
     def __repr__(self):
         return f"Sum({self.surfaces})"
+    
+# class _ExtendedPolynomials:
+#     """Surface defined by an extended polynomial basis. The surface sag follows the equation:
+
+#     .. math::
+
+#         z(x, y) = \sum_{i=1}^N A_i E_i\left(\frac{x}{R_{\mathrm{norm}}}, \frac{y}{R_{\mathrm{norm}}}\right)
+
+#     where :math:`E_i(x, y) = \sum_{k=0}^i x^{i-k} y^k` is the i-th basis polynomial,
+#     :math:`A_i` are the polynomial coefficients, and :math:`R_{\mathrm{norm}}` is the normalization radius.
+
+#     The basis is ordered by total degree, omitting the piston term (i=0).
+#     Fast evaluation is performed using NumPy arrays.
+#     """
+#     _monomial_cache = {}
+
+#     @classmethod
+#     def _get_monomial_indices(cls, maxdeg):
+#         """Return the (px, py) exponents for all monomials of total degree 1 to maxdeg.
+
+#         Uses a class-level cache to avoid recomputation for repeated calls with the same maxdeg.
+
+#         The returned array has shape (n_terms, 2), where each row gives the exponents (px, py)
+#         for the monomial x**px * y**py, ordered by increasing total degree and omitting the piston (degree 0).
+
+#         Parameters
+#         ----------
+#         maxdeg : int
+#             Maximum total degree of the monomials (excluding the piston term).
+
+#         Returns
+#         -------
+#         arr : ndarray of shape (n_terms, 2)
+#             Array of exponents for each monomial term.
+#         """
+#         if maxdeg not in cls._monomial_cache:
+#             # Number of monomials (excluding piston)
+#             n_terms = maxdeg * (maxdeg + 3) // 2
+#             arr = np.empty((n_terms, 2), dtype=int)
+#             idx = 0
+#             for d in range(1, maxdeg+1):
+#                 for px in range(d, -1, -1):
+#                     py = d - px
+#                     arr[idx, 0] = px
+#                     arr[idx, 1] = py
+#                     idx += 1
+#             cls._monomial_cache[maxdeg] = arr
+#         return cls._monomial_cache[maxdeg]
+    
+#     def __init__(self, A, R_norm=1.0):
+#         self.A = np.asarray(A, dtype=float, order="C")
+#         self.N = len(A) - 1
+#         self.R_norm = float(R_norm)
+#         self._maxdeg = self.N
+#         self._coef_array_xy = np.zeros((self.N + 1, self.N + 1), dtype=float, order="C")
+
+#         monomials = self._get_monomial_indices(self._maxdeg)
+#         n_terms = min(len(monomials), len(A)-1) # for safety
+#         pxs, pys = monomials[:n_terms, 0], monomials[:n_terms, 1]
+
+#         scales = np.power(self.R_norm, -(pxs + pys)) # Scale for normalized coordinates
+#         self._coef_array_xy[pxs, pys] += self.A[1:1+n_terms] * scales
+
+#         # Precompute gradient arrays
+#         self._coef_array_xy_gradx = np.zeros((self.N, self.N), dtype=float, order="C")
+#         self._coef_array_xy_grady = np.zeros((self.N, self.N), dtype=float, order="C")
+#         # For gradx: d/dx(x^p * y^q) = p * x^{p-1} * y^q
+#         px = np.arange(1, self.N + 1)[:, None]
+#         self._coef_array_xy_gradx[:, :] = px * self._coef_array_xy[1:, :-1]
+#         # For grady: d/dy(x^p * y^q) = q * x^p * y^{q-1}
+#         py = np.arange(1, self.N + 1)
+#         self._coef_array_xy_grady[:, :] = self._coef_array_xy[:-1, 1:] * py
+
+#     def _prepare_powers(self, x, y, coef_array):
+#         """
+#         Convert x, y to arrays and compute all powers up to the shape of coef_array.
+#         Returns (x, y, x_powers, y_powers)
+#         """
+#         x, y = np.asarray(x), np.asarray(y)
+#         deg_x, deg_y = coef_array.shape
+#         x_powers = np.array([x**i for i in range(deg_x)])
+#         y_powers = np.array([y**j for j in range(deg_y)])
+#         return x, y, x_powers, y_powers
+
+#     def eval(self, x, y):
+#         """
+#         Evaluate the value of the polynomial surface at (x, y).
+
+#         Uses np.tensordot to efficiently compute the sum over all monomial terms:
+#             eval(x, y) = sum_{p, q} coef[p, q] * x**p * y**q
+#         where coef contains the precomputed coefficients for each monomial.
+#         The first tensordot contracts over the x powers, and the second over the y powers,
+#         resulting in the full surface value(s) at the input coordinates.
+
+#         Parameters
+#         ----------
+#         x, y : array_like
+#             Points at which to evaluate the surface.
+
+#         Returns
+#         -------
+#         Z : array_like
+#             The value(s) of the surface at the given (x, y).
+#         """
+#         x, y, x_powers, y_powers = self._prepare_powers(x, y, self._coef_array_xy)
+#         Z = np.tensordot(self._coef_array_xy, x_powers, axes=(0,0))
+#         Z = np.tensordot(Z, y_powers, axes=(0,0))
+#         return Z
+
+#     def gradx(self, x, y):
+#         """
+#         Evaluate the partial derivative of the polynomial surface with respect to x at (x, y).
+
+#         Uses np.tensordot to efficiently compute the sum over all monomial terms:
+#             gradx(x, y) = sum_{p, q} coef_gradx[p, q] * x**p * y**q
+#         where coef_gradx contains the precomputed coefficients for the x-derivative.
+#         The first tensordot contracts over the x powers, and the second over the y powers,
+#         resulting in the full gradient value(s) at the input coordinates.
+
+#         Parameters
+#         ----------
+#         x, y : array_like
+#             Points at which to evaluate the x-derivative of the surface.
+
+#         Returns
+#         -------
+#         Zx : array_like
+#             The value(s) of the partial derivative with respect to x at the given (x, y).
+#         """
+#         x, y, x_powers, y_powers = self._prepare_powers(x, y, self._coef_array_xy_gradx)
+#         Zx = np.tensordot(self._coef_array_xy_gradx, x_powers, axes=(0,0))
+#         Zx = np.tensordot(Zx, y_powers, axes=(0,0))
+#         return Zx
+
+#     def grady(self, x, y):
+#         """
+#         Evaluate the partial derivative of the polynomial surface with respect to y at (x, y).
+
+#         Uses np.tensordot to efficiently compute the sum over all monomial terms:
+#             grady(x, y) = sum_{p, q} coef_grady[p, q] * x**p * y**q
+#         where coef_grady contains the precomputed coefficients for the y-derivative.
+#         The first tensordot contracts over the x powers, and the second over the y powers,
+#         resulting in the full gradient value(s) at the input coordinates.
+
+#         Parameters
+#         ----------
+#         x, y : array_like
+#             Points at which to evaluate the y-derivative of the surface.
+
+#         Returns
+#         -------
+#         Zy : array_like
+#             The value(s) of the partial derivative with respect to y at the given (x, y).
+#         """
+#         x, y, x_powers, y_powers = self._prepare_powers(x, y, self._coef_array_xy_grady)
+#         Zy = np.tensordot(self._coef_array_xy_grady, x_powers, axes=(0,0))
+#         Zy = np.tensordot(Zy, y_powers, axes=(0,0))
+#         return Zy
+    
+# class XPolynom(Surface):
+#     """Surface defined by a 2D polynomial expansion in $x$ and $y$ coordinates.
+
+#     The surface sag follows the equation:
+
+#     .. math::
+
+#         z(x, y) = \sum_{i=1}^N A_i E_i\left(\frac{x-x_0}{R_{\mathrm{norm}}}, \frac{y-y_0}{R_{\mathrm{norm}}}\right)
+
+#     where :math:`E_i(x, y) = \sum_{k=0}^i x^{i-k} y^k` is the i-th basis polynomial,
+#     :math:`A_i` are the polynomial coefficients, :math:`R_{\mathrm{norm}}` is the normalization radius,
+#     and :math:`(x_0, y_0)` is the origin for the polynomial expansion.
+
+#     The basis is ordered by total degree, omitting the piston term (i=0).
+#     Fast evaluation and derivatives are performed using precomputed NumPy arrays.
+
+#     Parameters
+#     ----------
+#     coef : list of float
+#         Polynomial coefficients $A_i$ (excluding piston).
+#     R_norm : float, optional
+#         Normalization radius for $x$ and $y$ coordinates. Default is 1.0.
+#     x_origin, y_origin : float, optional
+#         Origin for the polynomial expansion. Default is (0, 0).
+#     """
+#     def __init__(self, coef, R_norm=1.0, x_origin=0.0, y_origin=0.0):
+#         # Store polynomial coefficients and parameters
+#         self.coef = np.array(coef, dtype=float, order="C")
+#         self.R_norm = float(R_norm)
+#         self.x_origin = float(x_origin)
+#         self.y_origin = float(y_origin)
+
+#         # Build the polynomial representation (prepend 0 for piston)
+#         self.P = _ExtendedPolynomials([0.0] + list(coef), R_norm=self.R_norm)
+
+#         # Precompute coefficient arrays for evaluation and gradients
+#         self._xycoef = self.P._coef_array_xy
+#         self._xycoef_gradx = self.P._coef_array_xy_gradx
+#         self._xycoef_grady = self.P._coef_array_xy_grady
+
+#         # Create the underlying C++ polynomial surface for fast evaluation
+#         self._surface = _batoid.CPPPolynomialSurface(
+#             self._xycoef.ctypes.data,
+#             self._xycoef_gradx.ctypes.data,
+#             self._xycoef_grady.ctypes.data,
+#             self.x_origin, self.y_origin,
+#             self._xycoef.shape[0],
+#             self._xycoef.shape[1]
+#         )
+
+#     def __hash__(self):
+#         return hash((
+#             "batoid.XPolynom",
+#             tuple(self.coef),
+#             self.R_norm,
+#             self.x_origin,
+#             self.y_origin,
+#         ))
+
+#     def __setstate__(self, args):
+#         self.__init__(*args)
+
+#     def __getstate__(self):
+#         return (self.coef, self.R_norm, self.x_origin, self.y_origin)
+
+#     def __eq__(self, rhs):
+#         if not isinstance(rhs, XPolynom):
+#             return False
+#         return (np.array_equal(self.coef, rhs.coef) and
+#                 self.R_norm == rhs.R_norm and
+#                 self.x_origin == rhs.x_origin and
+#                 self.y_origin == rhs.y_origin)
+
+#     def __repr__(self):
+#         out = f"XPolynom({self.coef!r}"
+#         if self.R_norm != 1.0:
+#             out += f", R_norm={self.R_norm}"
+#         if self.x_origin != 0.0:
+#             out += f", x_origin={self.x_origin}"
+#         if self.y_origin != 0.0:
+#             out += f", y_origin={self.y_origin}"
+#         out += ")"
+#         return out
+
+class _ExtendedPolynomials:
+    """Surface defined by an extended polynomial basis. The surface sag follows the equation:
+
+    .. math::
+
+        z(x, y) = \sum_{i=1}^N A_i m_i\left(\frac{x}{R_{\mathrm{norm}}}, \frac{y}{R_{\mathrm{norm}}}\right)
+
+    where :math:`m_i(x, y) = x^{p_i} y^{q_i}` is the i-th individual monomial with exponents
+    :math:`(p_i, q_i)` ordered by increasing total degree :math:`p_i + q_i`, and for equal
+    total degree by decreasing x-power (i.e., x, y, x^2, xy, y^2, x^3, ...),
+    :math:`A_i` are the polynomial coefficients, and :math:`R_{\mathrm{norm}}` is the normalization radius.
+
+    The piston term (total degree 0) is omitted.
+    Fast evaluation is performed using NumPy arrays.
+    """
+    _monomial_cache = {}
+
+    @classmethod
+    def _get_monomial_indices(cls, maxdeg):
+        """Return the (px, py) exponents for all monomials of total degree 1 to maxdeg.
+
+        Uses a class-level cache to avoid recomputation for repeated calls with the same maxdeg.
+
+        The returned array has shape (n_terms, 2), where each row gives the exponents (px, py)
+        for the monomial x**px * y**py, ordered by increasing total degree and omitting the piston (degree 0).
+
+        Parameters
+        ----------
+        maxdeg : int
+            Maximum total degree of the monomials (excluding the piston term).
+
+        Returns
+        -------
+        arr : ndarray of shape (n_terms, 2)
+            Array of exponents for each monomial term.
+        """
+        if maxdeg not in cls._monomial_cache:
+            # Number of monomials (excluding piston)
+            n_terms = maxdeg * (maxdeg + 3) // 2
+            arr = np.empty((n_terms, 2), dtype=int)
+            idx = 0
+            for d in range(1, maxdeg+1):
+                for px in range(d, -1, -1):
+                    py = d - px
+                    arr[idx, 0] = px
+                    arr[idx, 1] = py
+                    idx += 1
+            cls._monomial_cache[maxdeg] = arr
+        return cls._monomial_cache[maxdeg]
+    
+    def __init__(self, A, R_norm=1.0):
+        self.A = np.asarray(A, dtype=float, order="C")
+        self.N = len(A) - 1
+        self.R_norm = float(R_norm)
+        # Compute the minimum degree that covers all N non-piston terms.
+        # Number of monomials through degree d (excluding piston) = d*(d+3)//2.
+        _maxdeg = 1
+        while _maxdeg * (_maxdeg + 3) // 2 < self.N:
+            _maxdeg += 1
+        self._maxdeg = _maxdeg
+        self._coef_array_xy = np.zeros((self._maxdeg + 1, self._maxdeg + 1), dtype=float, order="C")
+
+        monomials = self._get_monomial_indices(self._maxdeg)
+        n_terms = min(len(monomials), self.N)  # use exactly N terms
+        pxs, pys = monomials[:n_terms, 0], monomials[:n_terms, 1]
+
+        scales = np.power(self.R_norm, -(pxs + pys)) # Scale for normalized coordinates
+        self._coef_array_xy[pxs, pys] += self.A[1:1+n_terms] * scales
+
+        # Precompute gradient arrays
+        self._coef_array_xy_gradx = np.zeros((self._maxdeg, self._maxdeg), dtype=float, order="C")
+        self._coef_array_xy_grady = np.zeros((self._maxdeg, self._maxdeg), dtype=float, order="C")
+        # For gradx: d/dx(x^p * y^q) = p * x^{p-1} * y^q
+        px = np.arange(1, self._maxdeg + 1)[:, None]
+        self._coef_array_xy_gradx[:, :] = px * self._coef_array_xy[1:, :-1]
+        # For grady: d/dy(x^p * y^q) = q * x^p * y^{q-1}
+        py = np.arange(1, self._maxdeg + 1)
+        self._coef_array_xy_grady[:, :] = self._coef_array_xy[:-1, 1:] * py
+
+    def eval(self, x, y):
+        """
+        Evaluate the polynomial surface at paired points (x, y).
+
+        Computes sum_{p, q} coef[p, q] * x**p * y**q at each point (x[i], y[i]).
+
+        Parameters
+        ----------
+        x, y : array_like
+            Points at which to evaluate the surface. Must have the same shape.
+
+        Returns
+        -------
+        Z : ndarray
+            Surface value(s) at the given (x, y) points, same shape as x and y.
+        """
+        return np.polynomial.polynomial.polyval2d(
+            np.asarray(x, dtype=float), np.asarray(y, dtype=float),
+            self._coef_array_xy
+        )
+
+    def gradx(self, x, y):
+        """
+        Evaluate the partial derivative with respect to x at paired points (x, y).
+
+        Parameters
+        ----------
+        x, y : array_like
+            Points at which to evaluate the x-derivative. Must have the same shape.
+
+        Returns
+        -------
+        Zx : ndarray
+            dz/dx value(s) at the given (x, y) points, same shape as x and y.
+        """
+        return np.polynomial.polynomial.polyval2d(
+            np.asarray(x, dtype=float), np.asarray(y, dtype=float),
+            self._coef_array_xy_gradx
+        )
+
+    def grady(self, x, y):
+        """
+        Evaluate the partial derivative with respect to y at paired points (x, y).
+
+        Parameters
+        ----------
+        x, y : array_like
+            Points at which to evaluate the y-derivative. Must have the same shape.
+
+        Returns
+        -------
+        Zy : ndarray
+            dz/dy value(s) at the given (x, y) points, same shape as x and y.
+        """
+        return np.polynomial.polynomial.polyval2d(
+            np.asarray(x, dtype=float), np.asarray(y, dtype=float),
+            self._coef_array_xy_grady
+        )
+    
+class XPolynom(Surface):
+    """Surface defined by a 2D polynomial expansion in $x$ and $y$ coordinates.
+
+    The surface sag follows the equation:
+
+    .. math::
+
+        z(x, y) = \sum_{i=1}^N A_i m_i\left(\frac{x-x_0}{R_{\mathrm{norm}}}, \frac{y-y_0}{R_{\mathrm{norm}}}\right)
+
+    where :math:`m_i(x, y) = x^{p_i} y^{q_i}` is the i-th individual monomial with exponents
+    :math:`(p_i, q_i)` ordered by increasing total degree :math:`p_i + q_i` and, for equal
+    total degree, by decreasing x-power (i.e., x, y, x^2, xy, y^2, x^3, ...),
+    :math:`A_i` are the polynomial coefficients, :math:`R_{\mathrm{norm}}` is the normalization radius,
+    and :math:`(x_0, y_0)` is the origin for the polynomial expansion.
+
+    The piston term (total degree 0) is omitted.
+    Fast evaluation and derivatives are performed using precomputed NumPy arrays.
+
+    Parameters
+    ----------
+    coef : list of float
+        Polynomial coefficients $A_i$ (excluding piston).
+    R_norm : float, optional
+        Normalization radius for $x$ and $y$ coordinates. Default is 1.0.
+    x_origin, y_origin : float, optional
+        Origin for the polynomial expansion. Default is (0, 0).
+    """
+    def __init__(self, coef, R_norm=1.0, x_origin=0.0, y_origin=0.0):
+        # Store polynomial coefficients and parameters
+        self.coef = np.array(coef, dtype=float, order="C")
+        self.R_norm = float(R_norm)
+        self.x_origin = float(x_origin)
+        self.y_origin = float(y_origin)
+
+        # Build the polynomial representation (prepend 0 for piston)
+        self.P = _ExtendedPolynomials([0.0] + list(coef), R_norm=self.R_norm)
+
+        # Precompute coefficient arrays for evaluation and gradients
+        self._xycoef = self.P._coef_array_xy
+        self._xycoef_gradx = self.P._coef_array_xy_gradx
+        self._xycoef_grady = self.P._coef_array_xy_grady
+
+        # Create the underlying C++ polynomial surface for fast evaluation
+        self._surface = _batoid.CPPPolynomialSurface(
+            self._xycoef.ctypes.data,
+            self._xycoef_gradx.ctypes.data,
+            self._xycoef_grady.ctypes.data,
+            self.x_origin, self.y_origin,
+            self._xycoef.shape[0],
+            self._xycoef.shape[1]
+        )
+
+    def __hash__(self):
+        return hash((
+            "batoid.XPolynom",
+            tuple(self.coef),
+            self.R_norm,
+            self.x_origin,
+            self.y_origin,
+        ))
+
+    def __setstate__(self, args):
+        self.__init__(*args)
+
+    def __getstate__(self):
+        return (self.coef, self.R_norm, self.x_origin, self.y_origin)
+
+    def __eq__(self, rhs):
+        if not isinstance(rhs, XPolynom):
+            return False
+        return (np.array_equal(self.coef, rhs.coef) and
+                self.R_norm == rhs.R_norm and
+                self.x_origin == rhs.x_origin and
+                self.y_origin == rhs.y_origin)
+
+    def __repr__(self):
+        out = f"XPolynom({self.coef!r}"
+        if self.R_norm != 1.0:
+            out += f", R_norm={self.R_norm}"
+        if self.x_origin != 0.0:
+            out += f", x_origin={self.x_origin}"
+        if self.y_origin != 0.0:
+            out += f", y_origin={self.y_origin}"
+        out += ")"
+        return out
